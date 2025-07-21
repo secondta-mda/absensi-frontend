@@ -1,0 +1,7 @@
+import axios from 'axios';
+
+const API = axios.create({
+  baseURL: process.env.REACT_APP_API_URL || 'https://2667ea8d-9604-4acf-92c9-1fb002b242cb-00-1yochgg7702vj.sisko.replit.dev'
+});
+
+export default API;
