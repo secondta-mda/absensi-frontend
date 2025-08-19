@@ -47,8 +47,8 @@ export default function AbsensiForm({ onSubmit }) {
           value={status}
           onChange={(e) => setStatus(e.target.value)}
         >
-          <option value="pulang">Pulang</option>
           <option value="masuk">Masuk</option>
+          <option value="pulang">Pulang</option>
         </select>
       </div>
       <button

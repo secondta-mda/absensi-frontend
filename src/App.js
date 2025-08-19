@@ -1,16 +1,22 @@
-import AbsensiForm from './components/AbsensiForm';
-import AbsensiList from './components/AbsensiList';
-import { useState } from 'react';
+import { Routes, Route } from 'react-router-dom';
+import Login from './pages/auth/Login';
+import { Dashboard } from './pages/dashboard/user/Dashboard';
+import { Absensi } from './pages/dashboard/user/Absensi';
+import { Cuti } from './pages/dashboard/user/Cuti';
+import { Profil } from './pages/dashboard/user/Profil';
+import { NotFound } from './components/Notfound';
 
 function App() {
-  const [reload, setReload] = useState(false);
-
   return (
-    <div className="max-w-md mx-auto p-4">
-      <h1 className="text-2xl font-bold text-center mb-4">Aplikasi Absensi</h1>
-      <AbsensiForm onSubmit={() => setReload(!reload)} />
-      <AbsensiList key={reload} />
-    </div>
+    <Routes>
+      <Route path="/" element={<Login />} />
+      <Route path="/dashboard" element={<Dashboard />} />
+      <Route path="/absensi/masuk" element={<Absensi />} />
+      <Route path="/absensi/pulang" element={<Absensi />} />
+      <Route path="/cuti" element={<Cuti />} />
+      <Route path="/profil" element={<Profil />} />
+      <Route path="*" element={<NotFound />} />
+    </Routes>
   );
 }
 
