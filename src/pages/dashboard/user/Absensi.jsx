@@ -43,22 +43,6 @@ export function Absensi() {
     resetPhoto();
   };
 
-  // Data dummy untuk card absensi
-  const attendanceData = [
-    {
-      type: "masuk",
-      time: "08:00:15",
-      status: "Terlambat",
-      statusColor: "text-red-500"
-    },
-    {
-      type: "pulang",
-      time: "17:30:45",
-      status: "Lembur",
-      statusColor: "text-blue-500"
-    }
-  ];
-
   return (
     <div className="flex flex-col h-screen lexend-deca-font">
       <Navbar onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)} />
