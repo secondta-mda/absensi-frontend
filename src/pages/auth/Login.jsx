@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import API from "../../api";
 import Logo from "../../img/logo-mda.png";
-import BookingImage from '../../img/undraw_booking_1ztt.svg';
+import BookingImage from "../../img/undraw_booking_1ztt.svg";
 import { useNavigate } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faEye, faEyeSlash } from "@fortawesome/free-solid-svg-icons";
@@ -54,9 +54,26 @@ export default function Login({ onLogin = () => {} }) {
     try {
       const res = await API.post("/login", { username, password });
       if (res.data) {
-        localStorage.setItem("id", res.data.id);
+        // Simpan semua data user ke localStorage
+        localStorage.setItem("user_id", res.data.id);
         localStorage.setItem("username", res.data.username);
+        localStorage.setItem("role", res.data.role);
+        localStorage.setItem("jam_masuk", res.data.jam_masuk || "08:00:00");
+        localStorage.setItem("jam_pulang", res.data.jam_pulang || "17:00:00");
         localStorage.setItem("isLogin", "true");
+
+        // Simpan juga sebagai object lengkap untuk kemudahan akses
+        localStorage.setItem(
+          "userData",
+          JSON.stringify({
+            id: res.data.id,
+            username: res.data.username,
+            role: res.data.role,
+            jam_masuk: res.data.jam_masuk || "08:00:00",
+            jam_pulang: res.data.jam_pulang || "17:00:00",
+          })
+        );
+
         onLogin(res.data);
         navigate("/dashboard");
       }
@@ -103,12 +120,7 @@ export default function Login({ onLogin = () => {} }) {
             boxShadow: "0 8px 32px 0 rgba(0,0,0,0.08)",
           }}
         >
-          <img
-            src={Logo}
-            alt="Logo"
-            width={200}
-            className="mb-4"
-          />
+          <img src={Logo} alt="Logo" width={200} className="mb-4" />
           <h2 className="text-2xl font-extrabold text-gray-800 text-center mb-2 tracking-wide drop-shadow">
             Login
           </h2>

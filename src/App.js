@@ -3,6 +3,7 @@ import Login from './pages/auth/Login';
 import { Dashboard } from './pages/dashboard/user/Dashboard';
 import { Absensi } from './pages/dashboard/user/Absensi';
 import { Cuti } from './pages/dashboard/user/Cuti';
+import { Izin } from './pages/dashboard/user/Izin';
 import { Profil } from './pages/dashboard/user/Profil';
 import { NotFound } from './components/Notfound';
 
@@ -15,6 +16,7 @@ function App() {
       <Route path="/absensi/pulang" element={<Absensi />} />
       <Route path="/cuti" element={<Cuti />} />
       <Route path="/profil" element={<Profil />} />
+      <Route path="/izin" element={<Izin />} />
       <Route path="*" element={<NotFound />} />
     </Routes>
   );
