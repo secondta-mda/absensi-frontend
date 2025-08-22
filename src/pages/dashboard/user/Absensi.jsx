@@ -55,9 +55,7 @@ export function Absensi() {
   const [absensiStatus, setAbsensiStatus] = useState(null);
   const [riwayatAbsensi, setRiwayatAbsensi] = useState([]);
   const [loadingStatus, setLoadingStatus] = useState(true);
-  const [cameraLoading, setCameraLoading] = useState(false);
-  const [cameraError, setCameraError] = useState(null);
-  const [initializationComplete, setInitializationComplete] = useState(false);
+  const [cameraLoading, setCameraLoading] = useState(true);
 
   const videoRef = useRef(null);
   const canvasRef = useRef(null);
@@ -79,399 +77,168 @@ export function Absensi() {
     });
   };
 
-  // Cleanup camera stream
-  const cleanupCamera = () => {
-    if (stream) {
-      stream.getTracks().forEach((track) => {
-        track.stop();
-        console.log("Camera track stopped:", track.label);
-      });
-      setStream(null);
-    }
-  };
+  // Start camera stream
+  useEffect(() => {
+  if (photoTaken) return;
 
-  // Enhanced camera initialization with better mobile support
-  // Enhanced camera initialization with broad compatibility
-  const initializeCamera = async () => {
-    setCameraLoading(true);
-    setCameraError(null);
-
+  let localStream;
+  const startCamera = async () => {
     try {
-      // Stop existing stream first
-      cleanupCamera();
-
-      // Default constraints yang ringan (aman di semua device)
-      let constraints = {
-        video: true, // biarkan browser pilih resolusi terbaik
+      setCameraLoading(true);
+      localStream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 1280, height: 720, facingMode: "user" },
         audio: false,
-      };
-
-      // Deteksi environment
-      const isMobile = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
-      if (isMobile) {
-        constraints = {
-          video: {
-            facingMode: "user", // kamera depan (selfie)
-          },
-          audio: false,
-        };
-      }
-
-      console.log("Requesting camera access with constraints:", constraints);
-      const mediaStream = await navigator.mediaDevices.getUserMedia(
-        constraints
-      );
-
+      });
       if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
-
-        // Tunggu metadata lalu paksa play()
-        await new Promise((resolve, reject) => {
-          const video = videoRef.current;
-
-          const onLoadedMetadata = async () => {
-            video.removeEventListener("loadedmetadata", onLoadedMetadata);
-            video.removeEventListener("error", onError);
-            try {
-              await video.play(); // ⬅️ WAJIB
-              console.log("Video started playing");
-              resolve();
-            } catch (err) {
-              console.error("Video play() failed:", err);
-              reject(err);
-            }
-          };
-
-          const onError = (error) => {
-            video.removeEventListener("loadedmetadata", onLoadedMetadata);
-            video.removeEventListener("error", onError);
-            reject(error);
-          };
-
-          video.addEventListener("loadedmetadata", onLoadedMetadata);
-          video.addEventListener("error", onError);
-        });
+        videoRef.current.srcObject = localStream;
       }
-
-      setStream(mediaStream);
-      console.log("Camera initialized successfully");
+      setStream(localStream);
     } catch (err) {
       console.error("Error accessing camera:", err);
-      setCameraError(err.message);
-
-      let errorMessage = "Tidak dapat mengakses kamera.";
-      if (err.name === "NotAllowedError") {
-        errorMessage =
-          "Akses kamera ditolak. Pastikan Anda memberikan izin kamera.";
-      } else if (err.name === "NotFoundError") {
-        errorMessage = "Kamera tidak ditemukan pada perangkat ini.";
-      } else if (err.name === "NotSupportedError") {
-        errorMessage = "Kamera tidak didukung pada browser ini.";
-      }
-
-      showAlert("error", "Kamera Tidak Dapat Diakses", errorMessage);
+      showAlert(
+        "error",
+        "Kamera Tidak Dapat Diakses",
+        "Tidak dapat mengakses kamera. Pastikan Anda memberikan izin."
+      );
     } finally {
       setCameraLoading(false);
     }
   };
 
-  // Initialize user data and check browser compatibility
-  // Dalam useEffect initializeApp, perbaiki parsing userData
+  startCamera();
+
+  return () => {
+    if (localStream) {
+      localStream.getTracks().forEach((track) => track.stop());
+    }
+  };
+}, [photoTaken]); // 🔑 hanya bergantung pada photoTaken
+
+
+  // Ambil data user dari localStorage
   useEffect(() => {
-    const initializeApp = async () => {
-      try {
-        // Check if mediaDevices is supported
-        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          throw new Error("Browser tidak mendukung akses kamera");
-        }
+    const user = JSON.parse(localStorage.getItem("userData"));
+    if (user) {
+      setUserData(user);
+      console.log("User data loaded:", user);
+    }
+  }, []);
 
-        // Get user data from localStorage
-        const userDataStr = localStorage.getItem("userData");
-        console.log("Raw userData from localStorage:", userDataStr);
-
-        if (!userDataStr) {
-          console.error("No userData found in localStorage");
-          navigate("/login");
-          return;
-        }
-
-        let parsedData;
-        try {
-          parsedData = JSON.parse(userDataStr);
-        } catch (parseError) {
-          console.error("Failed to parse userData:", parseError);
-          localStorage.removeItem("userData"); // Clean corrupted data
-          navigate("/login");
-          return;
-        }
-
-        // PERBAIKAN DI SINI: Handle both response format and direct user object
-        let user;
-        if (parsedData.success && parsedData.data) {
-          // Format: {"success":true,"data":{...}}
-          user = parsedData.data;
-        } else if (parsedData.id && parsedData.username) {
-          // Format: {"id":1,"username":"a",...}
-          user = parsedData;
-        } else {
-          console.error("Invalid user data structure:", parsedData);
-          localStorage.removeItem("userData");
-          navigate("/login");
-          return;
-        }
-
-        if (!user || !user.id) {
-          console.error("Invalid user data:", user);
-          localStorage.removeItem("userData");
-          navigate("/login");
-          return;
-        }
-
-        setUserData(user);
-        console.log("User data loaded successfully:", user);
-
-        // Test API connection
-        console.log("Testing API connection...");
-        if (process.env.REACT_APP_API_URL) {
-          console.log("API URL configured:", process.env.REACT_APP_API_URL);
-        } else {
-          console.warn("REACT_APP_API_URL not configured");
-        }
-      } catch (error) {
-        console.error("App initialization error:", error);
-        showAlert("error", "Kesalahan Inisialisasi", error.message);
-      } finally {
-        setInitializationComplete(true);
-      }
-    };
-
-    initializeApp();
-  }, [navigate]);
-
-  // Check absensi status when user data is available
+  // Cek status absensi
+  // Perbaikan pada useEffect untuk cek status absensi
   useEffect(() => {
     const checkAbsensiStatus = async () => {
-      if (!userData?.id || !initializationComplete) return;
-
-      const timeoutId = setTimeout(() => {
-        console.warn("API call timeout - proceeding with default status");
-        setAbsensiStatus({ sudah_masuk: false, sudah_pulang: false });
-        setLoadingStatus(false);
-        showAlert(
-          "warning",
-          "Koneksi Lambat",
-          "Menggunakan mode offline. Beberapa fitur mungkin terbatas.",
-          3000
-        );
-      }, 10000); // 10 second timeout
+      if (!userData?.data.id) return;
 
       try {
         setLoadingStatus(true);
-        console.log("Checking absensi status for user:", userData.id);
-        console.log("API URL:", process.env.REACT_APP_API_URL);
+        console.log("Checking absensi status for user:", userData.data.id); // Debug log
 
-        // Check if API URL is configured
-        if (!process.env.REACT_APP_API_URL) {
-          throw new Error(
-            "API URL tidak dikonfigurasi. Periksa file environment."
-          );
-        }
+        const response = await fetch(
+          `${process.env.REACT_APP_API_URL}/absensi/status/${userData.data.id}`,
+          {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+            },
+          }
+        );
 
-        const apiUrl = `${process.env.REACT_APP_API_URL}/absensi/status/${userData.id}`;
-        console.log("Making request to:", apiUrl);
-
-        const controller = new AbortController();
-        const timeoutSignal = setTimeout(() => {
-          console.log("Request timeout, aborting...");
-          controller.abort();
-        }, 8000); // 8 second request timeout
-
-        const response = await fetch(apiUrl, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Accept: "application/json",
-          },
-          signal: controller.signal,
-        });
-
-        clearTimeout(timeoutSignal);
-        clearTimeout(timeoutId);
-
-        console.log("Response status:", response.status);
-        console.log("Response headers:", response.headers);
+        console.log("Response status:", response.status); // Debug log
 
         if (!response.ok) {
-          const errorText = await response.text();
-          console.error("Response error text:", errorText);
-
-          if (response.status === 404) {
-            // User belum pernah absen, set default status
-            console.log(
-              "User belum pernah absen (404), setting default status"
-            );
-            setAbsensiStatus({ sudah_masuk: false, sudah_pulang: false });
-            setLoadingStatus(false);
-            return;
-          } else if (response.status === 500) {
-            console.error("Server error (500)");
-            throw new Error(`Server error: ${errorText}`);
-          }
-
-          throw new Error(`HTTP ${response.status}: ${errorText}`);
+          throw new Error(`HTTP error! status: ${response.status}`);
         }
 
         const result = await response.json();
-        console.log("Absensi status result:", result);
+        console.log("API Response:", result); // Debug log
 
-        if (result && result.success && result.data) {
+        if (result.success) {
           setAbsensiStatus(result.data);
 
           // Redirect berdasarkan status absensi
           if (!result.data.sudah_masuk) {
             if (location.pathname.includes("pulang")) {
-              console.log("Redirecting to masuk - user has not checked in");
               navigate("/absensi/masuk");
-              return;
             }
           } else if (!result.data.sudah_pulang) {
             if (location.pathname.includes("masuk")) {
-              console.log("Redirecting to pulang - user already checked in");
               navigate("/absensi/pulang");
-              return;
             }
           }
         } else {
-          console.warn("Unexpected response format:", result);
-          // Fallback ke status default
-          setAbsensiStatus({ sudah_masuk: false, sudah_pulang: false });
+          throw new Error(result.message || "Failed to get absensi status");
         }
       } catch (error) {
-        clearTimeout(timeoutId);
         console.error("Error checking absensi status:", error);
-
-        if (error.name === "AbortError") {
-          console.log("Request was aborted due to timeout");
-          setAbsensiStatus({ sudah_masuk: false, sudah_pulang: false });
-          showAlert(
-            "warning",
-            "Koneksi Timeout",
-            "Server tidak merespons. Menggunakan mode offline sementara.",
-            3000
-          );
-        } else if (
-          error.name === "TypeError" &&
-          error.message.includes("Failed to fetch")
-        ) {
-          console.log("Network error - possibly CORS or server down");
-          setAbsensiStatus({ sudah_masuk: false, sudah_pulang: false });
-          showAlert(
-            "error",
-            "Koneksi Gagal",
-            "Tidak dapat terhubung ke server. Periksa koneksi internet Anda.",
-            4000
-          );
-        } else {
-          // Set default status agar app tetap berfungsi
-          setAbsensiStatus({ sudah_masuk: false, sudah_pulang: false });
-          showAlert(
-            "error",
-            "Terjadi Kesalahan",
-            `Gagal memuat status absensi: ${error.message}`,
-            4000
-          );
-        }
+        showAlert(
+          "error",
+          "Terjadi Kesalahan",
+          `Gagal memuat status absensi: ${error.message}`
+        );
       } finally {
         setLoadingStatus(false);
       }
     };
 
-    checkAbsensiStatus();
-  }, [userData, location.pathname, navigate, initializationComplete]);
+    const fetchRiwayatAbsensiHariIni = async () => {
+      if (!userData?.data.id) return;
 
-  // Fetch riwayat absensi
+      try {
+        console.log("Fetching riwayat absensi for user:", userData.data.id); // Debug log
+
+        const response = await fetch(
+          `${process.env.REACT_APP_API_URL}/absensi/hari-ini/${userData.data.id}`
+        );
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const result = await response.json();
+        console.log("Riwayat API Response:", result); // Debug log
+
+        if (result.success) {
+          setRiwayatAbsensi(result.data);
+        }
+      } catch (error) {
+        console.error("Error fetching riwayat absensi hari ini:", error);
+        // Jangan tampilkan alert untuk riwayat, biarkan silent fail
+      }
+    };
+
+    if (userData?.data.id) {
+      checkAbsensiStatus();
+      fetchRiwayatAbsensiHariIni();
+    }
+  }, [userData?.data.id]); // Hapus dependencies yang menyebabkan loop
+
+  // Ambil riwayat absensi
   const fetchRiwayatAbsensiHariIni = async () => {
-    if (!userData?.id) return;
+    if (!userData?.data.id) return;
 
     try {
-      console.log("Fetching riwayat absensi...");
-
-      const controller = new AbortController();
-      const timeoutSignal = setTimeout(() => controller.abort(), 5000); // 5 second timeout for riwayat
-
       const response = await fetch(
-        `${process.env.REACT_APP_API_URL}/absensi/hari-ini/${userData.id}`,
-        {
-          signal: controller.signal,
-        }
+        `${process.env.REACT_APP_API_URL}/absensi/hari-ini/${userData.data.id}`
       );
-
-      clearTimeout(timeoutSignal);
-
-      if (!response.ok) {
-        if (response.status === 404) {
-          // No history found, set empty array
-          setRiwayatAbsensi([]);
-          return;
-        }
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
       const result = await response.json();
 
       if (result.success) {
-        setRiwayatAbsensi(result.data || []);
-        console.log("Riwayat absensi loaded:", result.data);
-      } else {
-        setRiwayatAbsensi([]);
+        setRiwayatAbsensi(result.data);
       }
     } catch (error) {
       console.error("Error fetching riwayat absensi hari ini:", error);
-      if (error.name !== "AbortError") {
-        console.log("Setting empty riwayat due to error");
-      }
-      setRiwayatAbsensi([]);
-      // Don't show alert for riwayat fetch error to avoid too many alerts
+      showAlert(
+        "error",
+        "Terjadi Kesalahan",
+        "Gagal memuat riwayat absensi. Silakan coba lagi."
+      );
     }
   };
 
-  // Load riwayat when absensi status is loaded
-  useEffect(() => {
-    if (absensiStatus && userData?.id) {
-      fetchRiwayatAbsensiHariIni();
-    }
-  }, [absensiStatus, userData]);
-
-  // Initialize camera when conditions are met
-  useEffect(() => {
-    const shouldInitializeCamera =
-      !loadingStatus &&
-      initializationComplete &&
-      !photoTaken &&
-      absensiStatus &&
-      !(absensiStatus.sudah_masuk && absensiStatus.sudah_pulang) &&
-      !stream;
-
-    if (shouldInitializeCamera) {
-      console.log("Initializing camera...");
-      initializeCamera();
-    }
-
-    // Cleanup on unmount
-    return () => {
-      cleanupCamera();
-    };
-  }, [
-    loadingStatus,
-    initializationComplete,
-    photoTaken,
-    absensiStatus,
-    stream,
-  ]);
-
-  const username = userData?.username || "Guest User";
-  const jamMasuk = userData?.jam_masuk || "08:00:00";
-  const jamPulang = userData?.jam_pulang || "17:00:00";
+  const username = userData?.data.username || "Guest User";
+  const jamMasuk = userData?.data.jam_masuk || "08:00:00";
+  const jamPulang = userData?.data.jam_pulang || "17:00:00";
 
   // Format tanggal Indonesia
   const formatTanggal = (date) => {
@@ -504,16 +271,19 @@ export function Absensi() {
       const ctx = canvas.getContext("2d");
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      const imageUrl = canvas.toDataURL("image/jpeg", 0.8); // Added quality parameter
+      const imageUrl = canvas.toDataURL("image/jpeg");
       setPhoto(imageUrl);
       setPhotoTaken(true);
 
-      cleanupCamera();
-      console.log("Photo captured successfully");
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+        setStream(null);
+      }
     }
   };
 
   const resetPhoto = async () => {
+    // Tampilkan alert terlebih dahulu
     await showAlert(
       "info",
       "Mengatur Ulang",
@@ -521,12 +291,32 @@ export function Absensi() {
       1500
     );
 
+    // Setelah alert selesai, reset state dan reload
     setPhoto(null);
     setPhotoTaken(false);
-    setCameraError(null);
+    setCameraLoading(true);
 
-    // Initialize camera again
-    await initializeCamera();
+    // Mulai ulang kamera
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        video: { width: 1280, height: 720, facingMode: "user" },
+        audio: false,
+      });
+
+      if (videoRef.current) {
+        videoRef.current.srcObject = mediaStream;
+      }
+      setStream(mediaStream);
+      setCameraLoading(false);
+    } catch (err) {
+      console.error("Error accessing camera:", err);
+      showAlert(
+        "error",
+        "Kamera Tidak Dapat Diakses",
+        "Tidak dapat mengakses kamera. Pastikan Anda memberikan izin."
+      );
+      setCameraLoading(false);
+    }
   };
 
   const handleSubmit = async () => {
@@ -551,7 +341,6 @@ export function Absensi() {
         process.env.REACT_APP_CLOUDINARY_CLOUD_NAME
       );
 
-      console.log("Uploading to Cloudinary...");
       const cloudinaryRes = await fetch(
         `https://api.cloudinary.com/v1_1/${process.env.REACT_APP_CLOUDINARY_CLOUD_NAME}/image/upload`,
         {
@@ -566,29 +355,18 @@ export function Absensi() {
       }
 
       const cloudinaryData = await cloudinaryRes.json();
-      console.log("Image uploaded to Cloudinary successfully");
-
-      console.log("Submitting absensi to backend...");
-      const backendController = new AbortController();
-      const backendTimeoutSignal = setTimeout(
-        () => backendController.abort(),
-        15000
-      ); // 15 second timeout for backend
 
       const backendRes = await fetch(`${process.env.REACT_APP_API_URL}/absen`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          user_id: userData?.id,
+          user_id: userData?.data.id,
           type: type,
           image_url: cloudinaryData.secure_url,
-          jam_masuk_user: userData?.jam_masuk,
-          jam_pulang_user: userData?.jam_pulang,
+          jam_masuk_user: userData?.data.jam_masuk,
+          jam_pulang_user: userData?.data.jam_pulang,
         }),
-        signal: backendController.signal,
       });
-
-      clearTimeout(backendTimeoutSignal);
 
       if (!backendRes.ok) {
         const errorData = await backendRes.json().catch(() => ({}));
@@ -596,8 +374,8 @@ export function Absensi() {
       }
 
       const responseData = await backendRes.json();
-      console.log("Absensi submitted successfully:", responseData);
 
+      // Menggunakan SweetAlert2 untuk notifikasi sukses
       await showAlert(
         "success",
         "Absensi Berhasil",
@@ -605,36 +383,18 @@ export function Absensi() {
       );
 
       // Refresh status absensi setelah berhasil
-      try {
-        const statusController = new AbortController();
-        const statusTimeoutSignal = setTimeout(
-          () => statusController.abort(),
-          5000
-        );
-
-        const statusResponse = await fetch(
-          `${process.env.REACT_APP_API_URL}/absensi/status/${userData.id}`,
-          { signal: statusController.signal }
-        );
-
-        clearTimeout(statusTimeoutSignal);
-
-        if (statusResponse.ok) {
-          const statusResult = await statusResponse.json();
-          if (statusResult.success) {
-            setAbsensiStatus(statusResult.data);
-          }
-        }
-      } catch (statusError) {
-        console.log("Failed to refresh status, but absensi was successful");
+      const statusResponse = await fetch(
+        `${process.env.REACT_APP_API_URL}/absensi/status/${userData.data.id}`
+      );
+      const statusResult = await statusResponse.json();
+      if (statusResult.success) {
+        setAbsensiStatus(statusResult.data);
       }
 
       // Reset foto setelah alert selesai
-      setPhoto(null);
-      setPhotoTaken(false);
-      setCameraError(null);
+      await resetPhoto();
     } catch (error) {
-      console.error("Submit error:", error);
+      // Menggunakan SweetAlert2 untuk notifikasi error
       await showAlert(
         "error",
         "Absensi Gagal",
@@ -642,76 +402,31 @@ export function Absensi() {
       );
 
       // Reset foto setelah alert error selesai
-      setPhoto(null);
-      setPhotoTaken(false);
-      setCameraError(null);
-
+      await resetPhoto();
+      console.error("Upload error:", error);
       setTimeout(() => {
         window.location.reload();
-      }, 1000);
+      }, 100);
     } finally {
       setIsUploading(false);
+      setTimeout(() => {
+        window.location.reload();
+      }, 100);
     }
   };
 
-  // Show loading screen while initializing
-  if (!initializationComplete || loadingStatus) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="flex flex-col items-center gap-4 max-w-md mx-auto p-6">
-          <Spinner size={60} color="#ff0000" />
-          <span className="text-[#ff0000] font-bold text-lg animate-pulse text-center">
-            {!initializationComplete
-              ? "Menginisialisasi..."
-              : "Memuat status..."}
-          </span>
-
-          {/* Progress indicator */}
-          <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
-            <div
-              className="bg-red-500 h-2 rounded-full transition-all duration-300"
-              style={{
-                width: !initializationComplete
-                  ? "30%"
-                  : loadingStatus
-                  ? "70%"
-                  : "100%",
-              }}
-            ></div>
-          </div>
-
-          {loadingStatus && (
-            <div className="text-center mt-4">
-              <p className="text-sm text-gray-600 mb-2">
-                Menghubungkan ke server...
-              </p>
-              <p className="text-xs text-gray-500 mb-3">
-                API: {process.env.REACT_APP_API_URL || "Tidak dikonfigurasi"}
-              </p>
-              <button
-                onClick={() => window.location.reload()}
-                className="px-4 py-2 bg-red-500 text-white text-sm rounded-lg hover:bg-red-600 transition mr-2"
-              >
-                Muat Ulang Halaman
-              </button>
-              <button
-                onClick={() => {
-                  setAbsensiStatus({ sudah_masuk: false, sudah_pulang: false });
-                  setLoadingStatus(false);
-                }}
-                className="px-4 py-2 bg-gray-500 text-white text-sm rounded-lg hover:bg-gray-600 transition"
-              >
-                Lanjut Offline
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-    );
-  }
 
   const sudahAbsenHariIni =
     absensiStatus?.sudah_masuk && absensiStatus?.sudah_pulang;
+  // navigator.geolocation.getCurrentPosition(
+  //   (position) => {
+  //     console.log("Latitude:", position.coords.latitude);
+  //     console.log("Longitude:", position.coords.longitude);
+  //   },
+  //   (error) => {
+  //     console.error("Error:", error);
+  //   }
+  // );
 
   return (
     <div className="flex flex-col h-screen lexend-deca-font">
@@ -770,29 +485,13 @@ export function Absensi() {
           {!sudahAbsenHariIni && (
             <div className="bg-white rounded-2xl shadow-lg p-6 border border-gray-200 col-span-2 mb-6 text-center">
               <div className="flex flex-col items-center">
-                <div className="relative mb-4 rounded-xl overflow-hidden w-full max-w-2xl min-h-[300px] flex items-center justify-center bg-gray-100">
+                <div className="relative mb-4 rounded-xl overflow-hidden w-full max-w-2xl min-h-[300px] flex items-center justify-center">
                   {cameraLoading ? (
                     <div className="flex flex-col items-center">
                       <Spinner size={40} color="#ff0000" />
                       <span className="text-[#ff0000] font-bold animate-pulse">
                         Memuat Kamera...
                       </span>
-                    </div>
-                  ) : cameraError ? (
-                    <div className="flex flex-col items-center text-center p-4">
-                      <div className="text-red-500 text-4xl mb-2">📷</div>
-                      <p className="text-red-600 font-semibold mb-2">
-                        Kamera Tidak Tersedia
-                      </p>
-                      <p className="text-sm text-gray-600 mb-4">
-                        {cameraError}
-                      </p>
-                      <button
-                        onClick={initializeCamera}
-                        className="px-4 py-2 bg-red-500 text-white rounded-lg hover:bg-red-600"
-                      >
-                        Coba Lagi
-                      </button>
                     </div>
                   ) : photo ? (
                     <img src={photo} alt="Captured" className="w-full h-auto" />
@@ -803,7 +502,7 @@ export function Absensi() {
                       playsInline
                       muted
                       className="w-full h-auto"
-                      // onLoadedData={() => setCameraLoading(false)}
+                      onLoadedData={() => setCameraLoading(false)}
                     />
                   )}
                   <canvas ref={canvasRef} className="hidden" />
@@ -845,14 +544,10 @@ export function Absensi() {
                   ) : (
                     <button
                       onClick={capture}
-                      disabled={cameraLoading || cameraError || !stream}
+                      disabled={cameraLoading}
                       className="w-full bg-gradient-to-r from-red-500 to-red-600 text-white py-3 rounded-xl font-semibold hover:from-red-600 hover:to-red-700 transition disabled:opacity-50"
                     >
-                      {cameraLoading
-                        ? "Mempersiapkan Kamera..."
-                        : cameraError
-                        ? "Kamera Tidak Tersedia"
-                        : "Ambil Foto"}
+                      {cameraLoading ? "Mempersiapkan Kamera..." : "Ambil Foto"}
                     </button>
                   )}
                 </div>
@@ -951,16 +646,9 @@ export function Absensi() {
           {isUploading && (
             <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
               <div className="bg-white p-6 rounded-lg shadow-xl">
-                <div className="flex items-center gap-4">
-                  <Spinner size={30} color="#ff0000" />
-                  <div>
-                    <p className="text-lg font-semibold">
-                      Mengupload gambar...
-                    </p>
-                    <p className="text-sm text-gray-600">
-                      Mohon tunggu sebentar
-                    </p>
-                  </div>
+                <p className="text-lg font-semibold">Mengupload gambar...</p>
+                <div className="mt-4 w-full bg-gray-200 rounded-full h-2.5">
+                  <div className="bg-blue-600 h-2.5 rounded-full animate-pulse"></div>
                 </div>
               </div>
             </div>
