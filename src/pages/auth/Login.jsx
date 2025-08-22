@@ -52,35 +52,31 @@ export default function Login({ onLogin = () => {} }) {
     e.preventDefault();
     setLoading(true);
     try {
-      const res = await API.post("/login", { username, password });
-      if (res.data) {
-        // Simpan semua data user ke localStorage
-        localStorage.setItem("user_id", res.data.id);
-        localStorage.setItem("username", res.data.username);
-        localStorage.setItem("role", res.data.role);
-        localStorage.setItem("jam_masuk", res.data.jam_masuk || "08:00:00");
-        localStorage.setItem("jam_pulang", res.data.jam_pulang || "17:00:00");
-        localStorage.setItem("isLogin", "true");
+      const res = await fetch(`${process.env.REACT_APP_API_URL}/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
 
-        // Simpan juga sebagai object lengkap untuk kemudahan akses
-        localStorage.setItem(
-          "userData",
-          JSON.stringify({
-            id: res.data.id,
-            username: res.data.username,
-            role: res.data.role,
-            jam_masuk: res.data.jam_masuk || "08:00:00",
-            jam_pulang: res.data.jam_pulang || "17:00:00",
-          })
-        );
+      if (!res.ok) throw new Error("Login gagal");
 
-        onLogin(res.data);
-        navigate("/dashboard");
-      }
-      console.log("Login successful:", res.data);
+      const user = await res.json();
+
+      // Simpan ke localStorage (sama seperti di atas)
+      localStorage.setItem("user_id", user.id);
+      localStorage.setItem("username", user.username);
+      localStorage.setItem("role", user.role);
+      localStorage.setItem("jam_masuk", user.jam_masuk || "08:00:00");
+      localStorage.setItem("jam_pulang", user.jam_pulang || "17:00:00");
+      localStorage.setItem("isLogin", "true");
+
+      localStorage.setItem("userData", JSON.stringify(user));
+
+      onLogin(user);
+      navigate("/dashboard");
+      console.log("Login successful:", user);
     } catch (err) {
-      const msg = err.response?.data?.message || err;
-      alert(msg);
+      alert(err.message);
     }
     setLoading(false);
   };
