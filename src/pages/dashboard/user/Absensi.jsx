@@ -125,15 +125,23 @@ export function Absensi() {
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
 
-        // Tunggu video siap
+        // Tunggu metadata lalu paksa play()
         await new Promise((resolve, reject) => {
           const video = videoRef.current;
-          const onLoadedMetadata = () => {
+
+          const onLoadedMetadata = async () => {
             video.removeEventListener("loadedmetadata", onLoadedMetadata);
             video.removeEventListener("error", onError);
-            console.log("Video loaded successfully");
-            resolve();
+            try {
+              await video.play(); // ⬅️ WAJIB
+              console.log("Video started playing");
+              resolve();
+            } catch (err) {
+              console.error("Video play() failed:", err);
+              reject(err);
+            }
           };
+
           const onError = (error) => {
             video.removeEventListener("loadedmetadata", onLoadedMetadata);
             video.removeEventListener("error", onError);
@@ -795,7 +803,7 @@ export function Absensi() {
                       playsInline
                       muted
                       className="w-full h-auto"
-                      onLoadedData={() => setCameraLoading(false)}
+                      // onLoadedData={() => setCameraLoading(false)}
                     />
                   )}
                   <canvas ref={canvasRef} className="hidden" />
